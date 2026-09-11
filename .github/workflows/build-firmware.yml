@@ -46,11 +46,28 @@ jobs:
 
       - name: Fix samba4 relative include paths
         run: |
-          mkdir -p lang/perl lang/python
-          cp -f feeds/packages/lang/perl/perlver.mk lang/perl/perlver.mk
-          cp -f feeds/packages/lang/python/python3-host.mk lang/python/ 2>/dev/null || true
-          cp -f feeds/packages/lang/python/python3-package.mk lang/python/ 2>/dev/null || true
-          ls -l lang/perl lang/python
+          # package/samba4 是从 feeds/packages 复制到仓库根的，其 `include ../../lang/...`
+          # 这类 feeds 式相对路径在当前位置解析不到（且 python3-host.mk 还会按自身路径
+          # 继续 include ../rust/rust-values.mk），因此直接改成绝对路径
+          sed -i -E 's#^([[:space:]]*)include[[:space:]]+\.\./\.\./lang/#\1include $(TOPDIR)/feeds/packages/lang/#' package/samba4/Makefile
+          grep -n 'TOPDIR)/feeds/packages/lang' package/samba4/Makefile
+          [ "$(grep -c 'TOPDIR)/feeds/packages/lang' package/samba4/Makefile)" = "3" ] \
+            || { echo "::error::samba4 Makefile 改写失败"; exit 1; }
+
+          # 兜底：仓库根提供 lang 目录（符号链接到 feeds），兼容任何残余的 ../ 引用
+          rm -rf lang
+          ln -sfn "$PWD/feeds/packages/lang" "$PWD/lang"
+
+          # 关键依赖齐全性检查：缺任何一个都会在编译 3 小时后才炸
+          for f in \
+            feeds/packages/lang/perl/perlver.mk \
+            feeds/packages/lang/python/python3-host.mk \
+            feeds/packages/lang/python/python3-package.mk \
+            feeds/packages/lang/python/python3-version.mk \
+            feeds/packages/lang/rust/rust-values.mk ; do
+            [ -f "$f" ] || { echo "::error::缺少依赖 $f"; exit 1; }
+          done
+          echo "samba4 include 依赖检查通过"
 
       - name: Load E87N config
         run: |
