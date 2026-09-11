@@ -39,6 +39,18 @@ jobs:
           key: dl-${{ hashFiles('feeds.conf.default') }}
           restore-keys: dl-
 
+      - name: Pin luci feed to openwrt-25.12
+        run: |
+          # luci 的 master 分支在 luci.mk 里定义了 LUCI_UT_MIN_UCODE?=2026.02.27，
+          # 会给所有 luci 包加上 `ucode>=2026.02.27` 依赖；而本源码树（25.12）自带的
+          # package/utils/ucode 是 2026-01-16，两者冲突，导致最后 package/install
+          # 阶段报 "ERROR: unable to select packages"（Error 35）。
+          # 把 luci feed 锁定到与源码树匹配的 openwrt-25.12 分支即可。
+          cp -f feeds.conf.default feeds.conf.default.orig
+          sed -i -E 's#^src-git luci .*#src-git luci https://github.com/openwrt/luci.git;openwrt-25.12#' feeds.conf.default
+          grep -E '^src-git luci' feeds.conf.default
+          grep -q 'luci.git;openwrt-25.12' feeds.conf.default || { echo "::error::luci feed 分支锁定失败"; exit 1; }
+
       - name: Update and install feeds
         run: |
           ./scripts/feeds update -a
