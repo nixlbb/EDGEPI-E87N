@@ -52,6 +52,11 @@ jobs:
           grep -E '^src-git luci' feeds.conf.default
           grep -q 'luci.git;openwrt-25.12' feeds.conf.default || { echo "::error::luci feed 分支锁定失败"; exit 1; }
 
+      - name: Add OpenClash
+        run: |
+          # 将 OpenClash 源码克隆到 package 目录下
+          git clone --depth=1 https://github.com/vernesong/OpenClash package/luci-app-openclash
+
       - name: Update and install feeds
         run: |
           ./scripts/feeds update -a
